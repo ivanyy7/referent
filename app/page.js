@@ -47,7 +47,11 @@ export default function Home() {
         </div>
 
         {/* Кнопки действий */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-4">
+            Выберите действие:
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={() => handleAction('О чем статья?')}
             disabled={loading}
@@ -69,6 +73,7 @@ export default function Home() {
           >
             Пост для Telegram
           </button>
+          </div>
         </div>
 
         {/* Блок для отображения результата */}
