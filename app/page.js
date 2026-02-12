@@ -177,11 +177,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-8 sm:py-12 px-4 sm:px-6 overflow-x-hidden transition-colors">
       <div className="max-w-4xl mx-auto min-w-0">
-        <div className="mb-6 sm:mb-8 flex items-center justify-between gap-3 sm:gap-4">
-          <div className="w-8 sm:w-9 shrink-0" aria-hidden />
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center text-gray-800 dark:text-gray-100 flex-1 min-w-0 break-words">
-            Анализ статей с помощью AI
-          </h1>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between gap-3 sm:gap-4 mb-2">
+            <div className="w-8 sm:w-9 shrink-0" aria-hidden />
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-center text-gray-800 dark:text-gray-100 flex-1 min-w-0 break-words">
+              Анализ статей с помощью AI
+            </h1>
           <button
             type="button"
             onClick={toggleTheme}
@@ -194,6 +195,10 @@ export default function Home() {
               <Moon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.8} aria-hidden />
             )}
           </button>
+          </div>
+          <p className="text-center text-sm sm:text-base text-gray-600 dark:text-gray-400">
+            Переведёт, разъяснит и сгенерирует статью для блога!
+          </p>
         </div>
 
         {/* Поле ввода URL */}
