@@ -8,50 +8,127 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
 
   const handleAction = async (actionType) => {
+    // Шаг 3.1: Проверка наличия URL
     if (!url.trim()) {
       alert('Пожалуйста, введите URL статьи')
       return
     }
 
+    // Шаг 3.3: Установка состояния загрузки
     setLoading(true)
     setResult('')
 
     try {
-      // Парсим статью
-      const parseResponse = await fetch('/api/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      })
+      // Шаг 3.2: Парсим статью с таймаутом
+      const parseController = new AbortController()
+      const parseTimeoutId = setTimeout(() => parseController.abort(), 30000) // Таймаут 30 секунд
 
+      let parseResponse
+      try {
+        parseResponse = await fetch('/api/parse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+          signal: parseController.signal
+        })
+      } catch (error) {
+        clearTimeout(parseTimeoutId)
+        if (error.name === 'AbortError') {
+          throw new Error('Превышено время ожидания при парсинге статьи. Проверьте URL и попробуйте снова.')
+        }
+        throw error
+      } finally {
+        clearTimeout(parseTimeoutId)
+      }
+
+      // Шаг 3.4: Обработка ошибок парсинга
       if (!parseResponse.ok) {
-        throw new Error('Ошибка при парсинге статьи')
+        let errorMessage = 'Ошибка при парсинге статьи'
+        try {
+          const errorData = await parseResponse.json()
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // Если не удалось распарсить JSON, используем текст ответа
+          const text = await parseResponse.text().catch(() => '')
+          errorMessage = text || errorMessage
+        }
+        throw new Error(errorMessage)
       }
 
       const parsedData = await parseResponse.json()
-      
-      // Переводим статью через OpenRouter
-      const translateResponse = await fetch('/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content: parsedData.content }),
-      })
 
-      if (!translateResponse.ok) {
-        throw new Error('Ошибка при переводе статьи')
+      // Проверка наличия контента
+      if (!parsedData.content || parsedData.content === 'Контент не найден') {
+        throw new Error('Не удалось извлечь контент из статьи')
+      }
+      
+      // Шаг 3.2: Обрабатываем статью через AI с streaming ответом
+      const aiController = new AbortController()
+      const aiTimeoutId = setTimeout(() => aiController.abort(), 90000) // Таймаут 90 секунд
+
+      let aiResponse
+      try {
+        aiResponse = await fetch('/api/ai-action', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            actionType: actionType,  // 'О чем статья?', 'Тезисы', 'Пост для Telegram'
+            content: parsedData.content 
+          }),
+          signal: aiController.signal
+        })
+      } catch (error) {
+        clearTimeout(aiTimeoutId)
+        if (error.name === 'AbortError') {
+          throw new Error('Превышено время ожидания ответа от AI. Попробуйте позже или сократите размер статьи.')
+        }
+        throw error
+      } finally {
+        clearTimeout(aiTimeoutId)
       }
 
-      const translateData = await translateResponse.json()
+      // Шаг 3.4: Обработка ошибок AI запроса
+      if (!aiResponse.ok) {
+        const errorData = await aiResponse.text().catch(() => '')
+        let errorMessage = 'Ошибка при обработке статьи через AI'
+        
+        try {
+          const errorJson = JSON.parse(errorData)
+          errorMessage = errorJson.error || errorMessage
+        } catch (e) {
+          errorMessage = errorData || errorMessage
+        }
+        
+        // Более понятные сообщения для разных статусов
+        if (aiResponse.status === 401) {
+          errorMessage = 'Ошибка авторизации API. Проверьте настройки API ключа.'
+        } else if (aiResponse.status === 429) {
+          errorMessage = 'Слишком много запросов. Попробуйте позже.'
+        } else if (aiResponse.status === 400) {
+          errorMessage = errorMessage || 'Неверный запрос. Проверьте данные.'
+        }
+        
+        throw new Error(errorMessage)
+      }
+
+      // Шаг 3.2: Получаем результат от AI
+      const aiData = await aiResponse.json()
       
-      // Выводим перевод
-      setResult(translateData.translation || 'Перевод не получен')
+      // Шаг 3.2: Выводим результат от AI
+      if (!aiData.result) {
+        throw new Error('Результат не получен от AI')
+      }
+
+      setResult(aiData.result)
     } catch (error) {
+      // Шаг 3.4: Вывод понятных сообщений об ошибках
       setResult(`Ошибка: ${error.message}`)
     } finally {
+      // Шаг 3.3: Сброс состояния загрузки
       setLoading(false)
     }
   }
