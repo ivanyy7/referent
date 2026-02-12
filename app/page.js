@@ -13,7 +13,7 @@ export default function Home() {
         Привет, Next.js!
       </h1>
       <p style={{ fontSize: '1.2rem', color: '#666' }}>
-        Минимальное приложение успешно создано
+        Я изучаю Next.js
       </p>
     </main>
   )
