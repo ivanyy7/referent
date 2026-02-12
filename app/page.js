@@ -77,7 +77,8 @@ export default function Home() {
           },
           body: JSON.stringify({ 
             actionType: actionType,  // 'О чем статья?', 'Тезисы', 'Пост для Telegram'
-            content: parsedData.content 
+            content: parsedData.content,
+            sourceUrl: url.trim()  // для «Пост для Telegram» — ссылка на источник в конце поста
           }),
           signal: aiController.signal
         })
