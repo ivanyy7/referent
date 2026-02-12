@@ -32,8 +32,23 @@ export default function Home() {
 
       const parsedData = await parseResponse.json()
       
-      // Выводим JSON результат
-      setResult(JSON.stringify(parsedData, null, 2))
+      // Переводим статью через OpenRouter
+      const translateResponse = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: parsedData.content }),
+      })
+
+      if (!translateResponse.ok) {
+        throw new Error('Ошибка при переводе статьи')
+      }
+
+      const translateData = await translateResponse.json()
+      
+      // Выводим перевод
+      setResult(translateData.translation || 'Перевод не получен')
     } catch (error) {
       setResult(`Ошибка: ${error.message}`)
     } finally {
