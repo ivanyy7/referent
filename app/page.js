@@ -16,12 +16,29 @@ export default function Home() {
     setLoading(true)
     setResult('')
 
-    // Здесь будет логика подключения к AI
-    // Пока заглушка
-    setTimeout(() => {
-      setResult(`Результат для действия "${actionType}" будет здесь...`)
+    try {
+      // Парсим статью
+      const parseResponse = await fetch('/api/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      })
+
+      if (!parseResponse.ok) {
+        throw new Error('Ошибка при парсинге статьи')
+      }
+
+      const parsedData = await parseResponse.json()
+      
+      // Выводим JSON результат
+      setResult(JSON.stringify(parsedData, null, 2))
+    } catch (error) {
+      setResult(`Ошибка: ${error.message}`)
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -84,9 +101,9 @@ export default function Home() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
             </div>
           ) : result ? (
-            <div className="prose max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap">{result}</p>
-            </div>
+            <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96">
+              <code className="text-sm text-gray-800 whitespace-pre-wrap">{result}</code>
+            </pre>
           ) : (
             <p className="text-gray-400 italic">Результат появится здесь после выбора действия...</p>
           )}
