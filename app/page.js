@@ -31,6 +31,7 @@ export default function Home() {
   const [resultIsError, setResultIsError] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [processStatus, setProcessStatus] = useState('')
+  const [resultImage, setResultImage] = useState(null)
   const [isDark, setIsDark] = useState(false)
   const resultBlockRef = useRef(null)
 
@@ -52,6 +53,7 @@ export default function Home() {
   const handleClear = () => {
     setUrl('')
     setResult('')
+    setResultImage(null)
     setLoading(false)
     setUrlError('')
     setResultIsError(false)
@@ -60,10 +62,10 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (result && !loading && !resultIsError && resultBlockRef.current) {
+    if ((result || resultImage) && !loading && !resultIsError && resultBlockRef.current) {
       resultBlockRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  }, [result, loading, resultIsError])
+  }, [result, resultImage, loading, resultIsError])
 
   const handleAction = async (actionType) => {
     setUrlError('')
@@ -121,49 +123,77 @@ export default function Home() {
         throw new Error(PARSE_ERROR_MESSAGE)
       }
 
-      setProcessStatus('Анализирую с помощью AI…')
-
-      // Шаг 3.2: Обрабатываем статью через AI с streaming ответом
-      const aiController = new AbortController()
-      const aiTimeoutId = setTimeout(() => aiController.abort(), 90000) // Таймаут 90 секунд
-
-      let aiResponse
-      try {
-        aiResponse = await fetch('/api/ai-action', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            actionType: actionType,  // 'О чем статья?', 'Тезисы', 'Пост для Telegram'
-            content: parsedData.content,
-            sourceUrl: url.trim()  // для «Пост для Telegram» — ссылка на источник в конце поста
-          }),
-          signal: aiController.signal
-        })
-      } catch (error) {
-        clearTimeout(aiTimeoutId)
-        if (error.name === 'AbortError') {
-          throw new Error(getAiErrorMessage(504))
+      if (actionType === 'Иллюстрация') {
+        setProcessStatus('Создаю промпт и генерирую изображение…')
+        const imgController = new AbortController()
+        const imgTimeoutId = setTimeout(() => imgController.abort(), 120000)
+        try {
+          const imgResponse = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: parsedData.content }),
+            signal: imgController.signal
+          })
+          clearTimeout(imgTimeoutId)
+          if (!imgResponse.ok) {
+            const errData = await imgResponse.json().catch(() => ({}))
+            throw new Error(errData.error || getAiErrorMessage(imgResponse.status))
+          }
+          const imgData = await imgResponse.json()
+          if (!imgData.image) {
+            throw new Error('Изображение не получено. Попробуйте снова.')
+          }
+          setResultImage(imgData.image)
+          setResult('')
+          setResultIsError(false)
+        } catch (imgError) {
+          clearTimeout(imgTimeoutId)
+          if (imgError.name === 'AbortError') {
+            throw new Error('Превышено время ожидания. Попробуйте позже.')
+          }
+          throw imgError
         }
-        throw new Error(getAiErrorMessage(500))
-      } finally {
-        clearTimeout(aiTimeoutId)
+      } else {
+        setProcessStatus('Анализирую с помощью AI…')
+        const aiController = new AbortController()
+        const aiTimeoutId = setTimeout(() => aiController.abort(), 90000)
+
+        let aiResponse
+        try {
+          aiResponse = await fetch('/api/ai-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              actionType: actionType,
+              content: parsedData.content,
+              sourceUrl: url.trim()
+            }),
+            signal: aiController.signal
+          })
+        } catch (error) {
+          clearTimeout(aiTimeoutId)
+          if (error.name === 'AbortError') {
+            throw new Error(getAiErrorMessage(504))
+          }
+          throw new Error(getAiErrorMessage(500))
+        } finally {
+          clearTimeout(aiTimeoutId)
+        }
+
+        if (!aiResponse.ok) {
+          throw new Error(getAiErrorMessage(aiResponse.status))
+        }
+
+        const aiData = await aiResponse.json()
+
+        if (!aiData.result) {
+          throw new Error('Результат не получен. Попробуйте снова.')
+        }
+
+        setResult(aiData.result)
+        setResultImage(null)
+        setResultIsError(false)
       }
-
-      // Обработка ошибок AI — только дружественные тексты
-      if (!aiResponse.ok) {
-        throw new Error(getAiErrorMessage(aiResponse.status))
-      }
-
-      const aiData = await aiResponse.json()
-
-      if (!aiData.result) {
-        throw new Error('Результат не получен. Попробуйте снова.')
-      }
-
-      setResult(aiData.result)
-      setResultIsError(false)
     } catch (error) {
       // Используем только дружественное сообщение, никогда не показываем сырые API-ошибки
       setResult(error instanceof Error ? error.message : getAiErrorMessage(500))
@@ -245,7 +275,7 @@ export default function Home() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
             Выберите действие:
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <button
             onClick={() => handleAction('О чем статья?')}
             disabled={loading}
@@ -269,6 +299,14 @@ export default function Home() {
             className="bg-teal-600 hover:bg-teal-700 active:bg-teal-800 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:cursor-not-allowed min-h-[48px] touch-manipulation"
           >
             Пост для Telegram
+          </button>
+          <button
+            onClick={() => handleAction('Иллюстрация')}
+            disabled={loading}
+            title="Создать иллюстрацию к статье с помощью AI"
+            className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:cursor-not-allowed min-h-[48px] touch-manipulation"
+          >
+            Иллюстрация
           </button>
           </div>
         </div>
@@ -299,7 +337,7 @@ export default function Home() {
                   setCopySuccess(false)
                 }
               }}
-              disabled={!result || loading}
+              disabled={!result || resultImage || loading}
               title="Скопировать"
               className="shrink-0 p-1.5 rounded text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-950/40 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 dark:disabled:hover:text-gray-400 transition-colors"
             >
@@ -321,6 +359,14 @@ export default function Home() {
               <AlertTitle>Ошибка</AlertTitle>
               <AlertDescription>{result}</AlertDescription>
             </Alert>
+          ) : resultImage ? (
+            <div className="rounded-lg overflow-auto max-h-[28rem] bg-gray-50 dark:bg-gray-700/50 p-4 transition-colors min-w-0 flex justify-center">
+              <img
+                src={resultImage}
+                alt="Сгенерированная иллюстрация"
+                className="max-w-full h-auto rounded-lg object-contain"
+              />
+            </div>
           ) : result ? (
             <div className="rounded-lg overflow-auto max-h-96 bg-gray-50 dark:bg-gray-700/50 p-4 transition-colors min-w-0">
               <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words overflow-x-auto">
@@ -329,7 +375,7 @@ export default function Home() {
             </div>
           ) : (
             <p className="text-gray-400 dark:text-gray-500 italic py-8 break-words">
-              Введите URL статьи выше и нажмите одну из кнопок — результат появится здесь.
+              Введите URL статьи выше и нажмите одну из кнопок — результат или иллюстрация появятся здесь.
             </p>
           )}
         </div>
