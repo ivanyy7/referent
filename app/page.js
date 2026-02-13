@@ -275,8 +275,11 @@ export default function Home() {
 
         {/* Текущий процесс (только при загрузке) */}
         {processStatus && (
-          <div className="mb-4 px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm text-indigo-800 dark:text-indigo-200 break-words transition-colors">
-            {processStatus}
+          <div className="mb-4 px-4 py-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm text-indigo-800 dark:text-indigo-200 break-words transition-colors flex items-center gap-4">
+            <span className="shrink-0">{processStatus}</span>
+            <div className="flex-1 min-w-0 h-2 bg-indigo-200 dark:bg-indigo-800 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full animate-progress-fill" aria-hidden />
+            </div>
           </div>
         )}
 
